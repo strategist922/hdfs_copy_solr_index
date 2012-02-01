@@ -26,7 +26,10 @@ describe SolrIndexManager do
         end
       end
     end
-    @args =
+  end
+
+  it "should simulate job" do
+    args =
         {
             hadoop_src: 'solrindex/test_20110730',
             copy_dst: '/copy_to/test_20110730',
@@ -42,12 +45,10 @@ describe SolrIndexManager do
                  '/data/e/solr/news/20110815/#{key}',
                  '/data/f/solr/news/20110815/#{key}']
         }
-  end
-
-  it "should simulate job" do
-    @manager = SolrIndexManager.new(@args)
+    @manager = SolrIndexManager.new(args)
     @manager.go()
   end
+
 
   it "should have correct commands when no key" do
     Kernel.stub(:path).and_return('test')
@@ -58,7 +59,7 @@ describe SolrIndexManager do
         copy_dst: '/copy_to/test',
         max_merge_size: '100Gb',
         dst_distribution:
-            ['/data/a/solr/test/']
+            ['/data/a/solr/test']
     }
 
     @manager = SolrIndexManager.new(args)
@@ -66,7 +67,7 @@ describe SolrIndexManager do
     commands.size.should == 8
     first = commands.first
     first.folders.should == ["/copy_to/test/part-r-1", "/copy_to/test/part-r-2", "/copy_to/test/part-r-3", "/copy_to/test/part-r-4"]
-    first.merge_to.should == "/data/a/solr/test/"
+    first.merge_to.should == "/data/a/solr/test/data/index"
     first.result_folder_name.should == "part-r-1-part-r-4"
     first.hadoop_commands.map { |src, dst, size, key, prog_info| src }.should == ["solrindex/test/part-r-1", "solrindex/test/part-r-2", "solrindex/test/part-r-3", "solrindex/test/part-r-4"]
     first.hadoop_commands.map { |src, dst, size, key, prog_info| dst }.should == ["/copy_to/test/part-r-1", "/copy_to/test/part-r-2", "/copy_to/test/part-r-3", "/copy_to/test/part-r-4"]
@@ -81,7 +82,7 @@ describe SolrIndexManager do
         copy_dst: '/copy_to/test',
         max_merge_size: '100Gb',
         dst_distribution:
-            ['/data/a/solr/test/']
+            ['/data/a/solr/test']
     }
 
     @manager = SolrIndexManager.new(args)
@@ -89,17 +90,45 @@ describe SolrIndexManager do
     commands.size.should == 8
     first = commands.first
     first.folders.should == ["/copy_to/test/01", "/copy_to/test/02", "/copy_to/test/03", "/copy_to/test/04"]
-    first.merge_to.should == "/data/a/solr/test/"
+    first.merge_to.should == "/data/a/solr/test/data/index"
     first.result_folder_name.should == "01-04"
     first.hadoop_commands.map { |src, dst, size, key, prog_info| src }.should == ["solrindex/test/part-r-1", "solrindex/test/part-r-2", "solrindex/test/part-r-3", "solrindex/test/part-r-4"]
     first.hadoop_commands.map { |src, dst, size, key, prog_info| dst }.should == ["/copy_to/test/01", "/copy_to/test/02", "/copy_to/test/03", "/copy_to/test/04"]
     first.hadoop_commands.map { |src, dst, size, key, prog_info| key }.should == ["01", "02", "03", "04"]
   end
 
+  it "should use name template correct" do
+    Kernel.stub(:path).and_return('no_2012')
+
+    args = {
+        name: 'no_2012',
+        hadoop_src: 'solrindex/#{name}',
+        copy_dst: '/copy_to/#{name}',
+        max_merge_size: '100Gb',
+        dst_distribution:
+            ['/data/a/solr/#{name}/#{key}']
+    }
+
+    @manager = SolrIndexManager.new(args)
+    commands = @manager.get_commands
+    first = commands.first
+    first.folders.should == ["/copy_to/no_2012/01", "/copy_to/no_2012/02", "/copy_to/no_2012/03", "/copy_to/no_2012/04"]
+    first.merge_to.should == "/data/a/solr/no_2012/01-04/data/index"
+    first.hadoop_commands.map { |src, dst, size, key, prog_info| src }.should == ["solrindex/no_2012/part-r-1", "solrindex/no_2012/part-r-2", "solrindex/no_2012/part-r-3", "solrindex/no_2012/part-r-4"]
+    first.hadoop_commands.map { |src, dst, size, key, prog_info| dst }.should == ["/copy_to/no_2012/01", "/copy_to/no_2012/02", "/copy_to/no_2012/03", "/copy_to/no_2012/04"]
+  end
+
   it 'should parse content from hadoop fs -ls' do
     Kernel.stub(:path).and_return('test_20110730')
+    args = {
+        hadoop_src: 'solrindex/test_20110730',
+        copy_dst: '/copy_to/test_20110730',
+        max_merge_size: '100Gb',
+        dst_distribution:
+            ['/data/a/solr/test_20110730/']
+    }
 
-    @manager = SolrIndexManager.new(@args)
+    @manager = SolrIndexManager.new(args)
     list = @manager.get_files_with_info_from_hdfs('solrindex/test_20110730')
     random = Random.new(10)
     (1..20).each do |n|
