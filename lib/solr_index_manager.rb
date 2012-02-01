@@ -6,28 +6,20 @@ class SolrIndexManager
   SOLR_LIB_PATH = "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
 
   def initialize(args)
-    if args.size == 1
-      @opts = args[0]
-      @hadoop_src = @opts[:hadoop_src]
-      @local_src = @opts[:copy_dst]
-      @job_id = @opts[:job_id]
-      @max_merge_size = @opts[:max_merge_size]
-      @dst_distribution = @opts[:dst_distribution]
-      @config_src_folder = @opts[:config_src_folder]
-    else
-      @hadoop_src = args[0]
-      @local_src = args[1]
-      @merge_dst = args[2]
-      @move_dst = args[3]
-      @job_id = args[4]
-    end
+    @opts = args
+    @hadoop_src = @opts[:hadoop_src]
+    @local_src = @opts[:copy_dst]
+    @job_id = @opts[:job_id]
+    @max_merge_size = convert_from_gigabytes @opts[:max_merge_size]
+    @dst_distribution = @opts[:dst_distribution]
+    @config_src_folder = @opts[:config_src_folder]
 
     @copy_from_hadoop = !@hadoop_src.to_s.empty?
     @wait_for_job = !@job_id.to_s.empty?
   end
 
-  #Batch = Struct.new(:batch_size, :folders)
   CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
+
 
   def go
     puts "Wait from job    :#{@job_id}" if @wait_for_job
@@ -40,14 +32,10 @@ class SolrIndexManager
 
     wait_for_job if @wait_for_job
 
-    @max_merge_size = convert_from_gigabytes(@max_merge_size)
 
     if @copy_from_hadoop
-      file_list = get_files_with_info_from_hdfs(@hadoop_src)
-      batches = group_folders(file_list, @max_merge_size)
-      copy_commands = create_copy_commands(batches)
+      commands = get_commands()
 
-      commands = create_commands(copy_commands)
       commands.each do |copy_info|
         puts "#{copy_info.info} will merge to:#{copy_info.merge_to + '/data/index'}"
         puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
@@ -67,14 +55,16 @@ class SolrIndexManager
         sys_cmd("cp -r #{@config_src_folder} #{copy_info.merge_to}/conf") if @config_src_folder
 
         rm_folders(copy_info.folders)
-
-        #puts "will copy #{@opts[:config_src_folder]}"
-        #puts "will create core '#{copy_info.core_name}' on '#{@opts[:core_admin]}'"
-        #copy_info.hadoop_commands.each { |hdfs_src, dest| puts "#{hdfs_src} -> #{dest}" }
-
-        #puts copyInfo.result_folder_name
       end
     end
+  end
+
+  def get_commands
+    file_list = get_files_with_info_from_hdfs(@hadoop_src)
+    batches = group_folders(file_list, @max_merge_size)
+    copy_commands = create_copy_commands(batches)
+    commands = create_commands(copy_commands)
+    commands
   end
 
   def check_src_config_files()
