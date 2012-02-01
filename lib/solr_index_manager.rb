@@ -5,7 +5,10 @@ class SolrIndexManager
   SOLR_VERSION = "3.3.0"
   SOLR_LIB_PATH = "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
 
+  attr_reader :opts
+
   def initialize(args)
+    args = YAML::load(File.open(args)) if (args.is_a? String)
     @opts = args
     @name = args[:name]
     @hadoop_src = replace_with_name args[:hadoop_src]
