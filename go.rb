@@ -24,5 +24,5 @@ args =
 #require 'yaml'
 #File.open("go.yaml", 'w:UTF-8') { |out| YAML::dump(args, out) }
 
-manager = SolrIndexManager.new(args)
+manager = SolrIndexManager.new(ARGV[0] || args)
 manager.go()
