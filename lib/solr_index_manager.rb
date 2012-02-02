@@ -5,29 +5,32 @@ class SolrIndexManager
   SOLR_VERSION = "3.3.0"
   SOLR_LIB_PATH = "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
 
+  attr_reader :opts
+
   def initialize(args)
-    if args.size == 1
-      @opts = args[0]
-      @hadoop_src = @opts[:hadoop_src]
-      @local_src = @opts[:copy_dst]
-      @job_id = @opts[:job_id]
-      @max_merge_size = @opts[:max_merge_size]
-      @dst_distribution = @opts[:dst_distribution]
-      @config_src_folder = @opts[:config_src_folder]
-    else
-      @hadoop_src = args[0]
-      @local_src = args[1]
-      @merge_dst = args[2]
-      @move_dst = args[3]
-      @job_id = args[4]
-    end
+    args = YAML::load(File.open(args)) if (args.is_a? String)
+    @opts = args
+    @name = args[:name]
+    @hadoop_src = replace_with_name args[:hadoop_src]
+    @local_src = replace_with_name args[:copy_dst]
+    @job_id = args[:job_id]
+    @max_merge_size = convert_from_gigabytes args[:max_merge_size]
+    @dst_distribution = replace_with_name args[:dst_distribution]
+    @config_src_folder = args[:config_src_folder]
 
     @copy_from_hadoop = !@hadoop_src.to_s.empty?
     @wait_for_job = !@job_id.to_s.empty?
   end
 
-  #Batch = Struct.new(:batch_size, :folders)
   CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
+
+  def replace_with_name(value)
+    return value.collect { |item| replace_with_name(item) } if (value.is_a? Array)
+
+    name = @name
+    key = '#{key}'
+    eval('"' + value + '"')
+  end
 
   def go
     puts "Wait from job    :#{@job_id}" if @wait_for_job
@@ -40,16 +43,11 @@ class SolrIndexManager
 
     wait_for_job if @wait_for_job
 
-    @max_merge_size = convert_from_gigabytes(@max_merge_size)
-
     if @copy_from_hadoop
-      file_list = get_files_with_info_from_hdfs(@hadoop_src)
-      batches = group_folders(file_list, @max_merge_size)
-      copy_commands = create_copy_commands(batches)
+      commands = get_commands()
 
-      commands = create_commands(copy_commands)
       commands.each do |copy_info|
-        puts "#{copy_info.info} will merge to:#{copy_info.merge_to + '/data/index'}"
+        puts "#{copy_info.info} will merge to:#{copy_info.merge_to}"
         puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
         puts "will create core '#{copy_info.core_name}' with path:'#{copy_info.merge_to}' on '#{@opts[:core_admin]}'"
       end
@@ -63,18 +61,20 @@ class SolrIndexManager
           sys_cmd("hadoop fs -copyToLocal #{hdfs_src} #{dest}", size, status)
         end
 
-        merge_index(copy_info.folders, copy_info.merge_to + '/data/index')
+        merge_index(copy_info.folders, copy_info.merge_to)
         sys_cmd("cp -r #{@config_src_folder} #{copy_info.merge_to}/conf") if @config_src_folder
 
         rm_folders(copy_info.folders)
-
-        #puts "will copy #{@opts[:config_src_folder]}"
-        #puts "will create core '#{copy_info.core_name}' on '#{@opts[:core_admin]}'"
-        #copy_info.hadoop_commands.each { |hdfs_src, dest| puts "#{hdfs_src} -> #{dest}" }
-
-        #puts copyInfo.result_folder_name
       end
     end
+  end
+
+  def get_commands
+    file_list = get_files_with_info_from_hdfs(@hadoop_src)
+    batches = group_folders(file_list, @max_merge_size)
+    copy_commands = create_copy_commands(batches)
+    commands = create_commands(copy_commands)
+    commands
   end
 
   def check_src_config_files()
@@ -96,7 +96,7 @@ class SolrIndexManager
 
       key = "#{keys.first}-#{keys.last}"
       eval_data = @dst_distribution[(cnt+=1) % @dst_distribution.size-1]
-      merge_to = eval('"' + eval_data + '"')# + '/data/index'
+      merge_to = eval('"' + eval_data + '"') + '/data/index'
 
       core_name = @opts[:core_prefix].to_s + key
       commands << CopyInfo.new(info, folders, merge_to, hadoop_commands, key, core_name)
@@ -199,7 +199,7 @@ class SolrIndexManager
   end
 
   def get_files(path)
-    %x[ls #{path}].split("\n").map {|file| file }
+    %x[ls #{path}].split("\n").map { |file| file }
   end
 
   def wait_for_job
@@ -222,7 +222,7 @@ class SolrIndexManager
     file_info_list.map do |file, size, json, part|
       key = /key\s?'(\d+)'/.match(json)
       key = key[1] if (key)
-      key = part if(!key || key.empty?)
+      key = part if (!key || key.empty?)
       path = "#{@local_src}/#{key}"
       done_size += size.to_i
       percentage = (done_size * 100) / total_size
