@@ -1,5 +1,6 @@
 require 'readline'
 require 'open-uri'
+require 'yaml'
 
 class SolrIndexManager
   SOLR_VERSION = "3.3.0"
