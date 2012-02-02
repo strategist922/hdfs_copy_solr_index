@@ -50,7 +50,7 @@ describe SolrIndexManager do
   end
 
   after do
-    File.delete('test.yaml')
+    File.delete('test.yaml') if File.exist?'test.yaml'
   end
 
 
