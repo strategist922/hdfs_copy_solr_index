@@ -5,27 +5,7 @@ require_relative '../lib/solr_index_manager'
 describe SolrIndexManager do
   before(:each) do
     Readline.stub(:readline).and_return 'y'
-    Kernel.stub(:path).and_return('unknown')
-    Kernel.stub(:get_key).and_return(lambda { |cmd| "key '#{"%02d" % /-(\d+)/.match(cmd)[1].to_s.to_i}': 62700332 documents" })
-
-    module Kernel
-      def `(cmd)
-        random = Random.new(10)
-        itr = (1..20)
-        if cmd.start_with? 'hadoop fs -du'
-          return itr.map { |n|
-            r = random.rand(10..50)
-            "#{r*1024*1024*1024} solrindex/#{Kernel::path}/part-r-#{n}"
-          }.join "\n"
-        elsif cmd.start_with? 'hadoop fs -cat'
-          return Kernel::get_key.call(cmd)
-        elsif cmd.start_with? 'ls /'
-          return itr.map { |n| "#{n}" }.join("\n")
-        elsif cmd.start_with? 'du -k'
-          return "20110104/t2342"
-        end
-      end
-    end
+    require '../lib/cmd_simulate'
   end
 
   it "should simulate job" do
@@ -55,8 +35,7 @@ describe SolrIndexManager do
 
 
   it "should have correct commands when no key" do
-    Kernel.stub(:path).and_return('test')
-    Kernel.stub(:get_key).and_return(lambda { |cmd| "key '': 62700332 documents" })
+    Kernel.stub(:get_key) {|cmd| "key '': 62700332 documents"}
 
     args = {
         hadoop_src: 'solrindex/test',
@@ -65,6 +44,7 @@ describe SolrIndexManager do
         dst_distribution:
             ['/data/a/solr/test']
     }
+    Kernel.path = args[:hadoop_src]
 
     @manager = SolrIndexManager.new(args)
     commands = @manager.get_commands
@@ -79,8 +59,6 @@ describe SolrIndexManager do
   end
 
   it "should read config from yaml" do
-    Kernel.stub(:path).and_return('test')
-
     args = {
         name: 'no_2012',
         hadoop_src: 'solrindex/#{name}',
@@ -89,6 +67,8 @@ describe SolrIndexManager do
         dst_distribution:
             ['/data/a/solr/#{name}/#{key}']
     }
+    Kernel.path = args[:hadoop_src]
+
     file_name = "test.yaml"
     File.open(file_name, 'w:UTF-8') { |out| YAML::dump(args, out) }
     @manager = SolrIndexManager.new(file_name)
@@ -98,8 +78,6 @@ describe SolrIndexManager do
   end
 
   it "should use name template correct" do
-    Kernel.stub(:path).and_return('no_2012')
-
     args = {
         name: 'no_2012',
         hadoop_src: 'solrindex/#{name}',
@@ -108,6 +86,7 @@ describe SolrIndexManager do
         dst_distribution:
             ['/data/a/solr/#{name}/#{key}']
     }
+    Kernel.path = 'solrindex/no_2012'
 
     @manager = SolrIndexManager.new(args)
     commands = @manager.get_commands
@@ -119,7 +98,6 @@ describe SolrIndexManager do
   end
 
   it 'should parse content from hadoop fs -ls' do
-    Kernel.stub(:path).and_return('test_20110730')
     args = {
         hadoop_src: 'solrindex/test_20110730',
         copy_dst: '/copy_to/test_20110730',
@@ -127,6 +105,7 @@ describe SolrIndexManager do
         dst_distribution:
             ['/data/a/solr/test_20110730/']
     }
+    Kernel.path = args[:hadoop_src]
 
     @manager = SolrIndexManager.new(args)
     list = @manager.get_files_with_info_from_hdfs('solrindex/test_20110730')
