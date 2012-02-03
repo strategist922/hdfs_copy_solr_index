@@ -38,8 +38,8 @@ class SolrIndexManager
     @log.log(msg + "\n")
   end
 
-  def printf(msg)
-    Kernel::printf msg
+  def print(msg)
+    Kernel::print msg
     @log.log(msg)
   end
 
@@ -52,7 +52,6 @@ class SolrIndexManager
     key = '#{key}'
     eval('"' + value + '"')
   end
-
 
   def go
     puts "Wait from job    :#{@job_id}" if @wait_for_job
@@ -186,7 +185,7 @@ class SolrIndexManager
   end
 
   def get_files_with_info_from_hdfs(hadoop_src)
-    printf "finding files and job.info on hdfs:"
+    print "finding files and job.info on hdfs:"
     list_files_cmd = "hadoop fs -du #{hadoop_src} | grep part | gawk '{ if ($1>60)  print $0 }'"
     directory_list = %x[#{list_files_cmd}]
     total_size = 0
