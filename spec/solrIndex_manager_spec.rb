@@ -5,6 +5,7 @@ require_relative '../lib/solr_index_manager'
 describe SolrIndexManager do
   before(:each) do
     Readline.stub(:readline).and_return 'y'
+    SimpleLogger.stub(:new).and_return mock().as_null_object
     require '../lib/cmd_simulate'
   end
 
