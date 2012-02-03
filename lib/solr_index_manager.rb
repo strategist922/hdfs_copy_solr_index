@@ -1,6 +1,7 @@
 require 'readline'
 require 'open-uri'
 require 'yaml'
+require_relative 'simple_logger'
 
 class SolrIndexManager
   SOLR_VERSION = "3.3.0"
@@ -22,12 +23,24 @@ class SolrIndexManager
     @config_src_folder = args[:config_src_folder]
 
     @wait_for_job = !@job_id.to_s.empty?
+    @log = SimpleLogger.new('log.txt')
 
     if @simulate
       require_relative 'cmd_simulate'
       Kernel.path= @hadoop_src
-      Kernel.count=4
+      Kernel.count=20
+      Kernel.sleep_time=2
     end
+  end
+
+  def puts(msg)
+    Kernel::puts msg
+    @log.log(msg + "\n")
+  end
+
+  def printf(msg)
+    Kernel::printf msg
+    @log.log(msg)
   end
 
   CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
@@ -39,6 +52,7 @@ class SolrIndexManager
     key = '#{key}'
     eval('"' + value + '"')
   end
+
 
   def go
     puts "Wait from job    :#{@job_id}" if @wait_for_job
@@ -52,14 +66,7 @@ class SolrIndexManager
 
     commands = get_commands()
 
-    commands.each do |copy_info|
-      puts "#{copy_info.info} will merge to:#{copy_info.merge_to}"
-      puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
-      puts "will create core '#{copy_info.core_name}' with path:'#{copy_info.merge_to}' on '#{@opts[:core_admin]}'"
-    end
-
-    puts ""
-    continue_or_not
+    display_job_info(commands)
 
     commands.each do |copy_info|
       puts copy_info.info
@@ -73,6 +80,18 @@ class SolrIndexManager
       rm_folders(copy_info.folders)
     end
     puts "done!"
+  end
+
+  def display_job_info(commands)
+    return if @verify == false
+    commands.each do |copy_info|
+      puts "#{copy_info.info} will merge to:#{copy_info.merge_to}"
+      puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
+      puts "will create core '#{copy_info.core_name}' with path:'#{copy_info.merge_to}' on '#{@opts[:core_admin]}'"
+    end
+
+    puts ""
+    continue_or_not
   end
 
   def get_commands
