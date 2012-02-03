@@ -1,9 +1,7 @@
-#Kernel.stub(:path).and_return('unknown')
-#Kernel.stub(:get_key).and_return(lambda { |cmd| "key '#{"%02d" % /-(\d+)/.match(cmd)[1].to_s.to_i}': 62700332 documents" })
-
 module Kernel
   @@path = 'unknown'
   @@count = 20
+  @@sleep_time = 0.1
 
   def path
     @@path
@@ -25,7 +23,16 @@ module Kernel
     @@count = value
   end
 
+  def sleep_time
+    @@sleep_time
+  end
+
+  def sleep_time=(value)
+    @@sleep_time = value
+  end
+
   def `(cmd)
+    sleep(sleep_time)
     random = Random.new(10)
     itr = (1..count)
     if cmd.start_with? 'hadoop fs -du'
