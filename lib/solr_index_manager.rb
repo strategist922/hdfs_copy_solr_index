@@ -1,5 +1,7 @@
 require 'readline'
 require 'open-uri'
+require 'yaml'
+require_relative 'simple_logger'
 
 class SolrIndexManager
   SOLR_VERSION = "3.3.0"
@@ -10,6 +12,8 @@ class SolrIndexManager
   def initialize(args)
     args = YAML::load(File.open(args)) if (args.is_a? String)
     @opts = args
+    @simulate = args[:simulate]
+    @verify = args[:verify] != nil ? args[:verify] : true
     @name = args[:name]
     @hadoop_src = replace_with_name args[:hadoop_src]
     @local_src = replace_with_name args[:copy_dst]
@@ -18,8 +22,25 @@ class SolrIndexManager
     @dst_distribution = replace_with_name args[:dst_distribution]
     @config_src_folder = args[:config_src_folder]
 
-    @copy_from_hadoop = !@hadoop_src.to_s.empty?
     @wait_for_job = !@job_id.to_s.empty?
+    @log = SimpleLogger.new('log.txt')
+
+    if @simulate
+      require_relative 'cmd_simulate'
+      Kernel.path= @hadoop_src
+      Kernel.count=20
+      Kernel.sleep_time=2
+    end
+  end
+
+  def puts(msg)
+    Kernel::puts msg
+    @log.log(msg + "\n")
+  end
+
+  def printf(msg)
+    Kernel::printf msg
+    @log.log(msg)
   end
 
   CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
@@ -32,9 +53,9 @@ class SolrIndexManager
     eval('"' + value + '"')
   end
 
+
   def go
     puts "Wait from job    :#{@job_id}" if @wait_for_job
-    puts "Copy from hadoop :#{@hadoop_src}" if @copy_from_hadoop
     puts "Local path       :#{@local_src}"
     puts "Max merge size   :#{@max_merge_size}" if @max_merge_size
     puts "Config src_folder:#{@config_src_folder}" if @config_src_folder
@@ -43,30 +64,34 @@ class SolrIndexManager
 
     wait_for_job if @wait_for_job
 
-    if @copy_from_hadoop
-      commands = get_commands()
+    commands = get_commands()
 
-      commands.each do |copy_info|
-        puts "#{copy_info.info} will merge to:#{copy_info.merge_to}"
-        puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
-        puts "will create core '#{copy_info.core_name}' with path:'#{copy_info.merge_to}' on '#{@opts[:core_admin]}'"
+    display_job_info(commands)
+
+    commands.each do |copy_info|
+      puts copy_info.info
+      copy_info.hadoop_commands.each do |hdfs_src, dest, size, status|
+        sys_cmd("hadoop fs -copyToLocal #{hdfs_src} #{dest}", size, status)
       end
 
-      puts ""
-      continue_or_not
+      merge_index(copy_info.folders, copy_info.merge_to)
+      sys_cmd("cp -r #{@config_src_folder} #{copy_info.merge_to}/conf") if @config_src_folder
 
-      commands.each do |copy_info|
-        puts copy_info.info
-        copy_info.hadoop_commands.each do |hdfs_src, dest, size, status|
-          sys_cmd("hadoop fs -copyToLocal #{hdfs_src} #{dest}", size, status)
-        end
-
-        merge_index(copy_info.folders, copy_info.merge_to)
-        sys_cmd("cp -r #{@config_src_folder} #{copy_info.merge_to}/conf") if @config_src_folder
-
-        rm_folders(copy_info.folders)
-      end
+      rm_folders(copy_info.folders)
     end
+    puts "done!"
+  end
+
+  def display_job_info(commands)
+    return if @verify == false
+    commands.each do |copy_info|
+      puts "#{copy_info.info} will merge to:#{copy_info.merge_to}"
+      puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
+      puts "will create core '#{copy_info.core_name}' with path:'#{copy_info.merge_to}' on '#{@opts[:core_admin]}'"
+    end
+
+    puts ""
+    continue_or_not
   end
 
   def get_commands
@@ -155,6 +180,7 @@ class SolrIndexManager
   end
 
   def continue_or_not
+    return if @verify == false
     puts "continue? (y/n)?"
     exit if Readline.readline != 'y'
   end
@@ -181,7 +207,6 @@ class SolrIndexManager
   end
 
   def sys_cmd(cmd, size=0, status="")
-    #size = size.to_i
     start = Time.now
     %x[#{cmd}]
     sleep(0.1)
