@@ -4,13 +4,16 @@ require 'yaml'
 require_relative 'simple_logger'
 
 class SolrIndexManager
-  SOLR_VERSION = "3.3.0"
-  SOLR_LIB_PATH = "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
+  CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
 
   attr_reader :opts
 
   def initialize(args)
     args = YAML::load(File.open(args)) if (args.is_a? String)
+
+    @solr_version = args[:solr_version] || "3.3.0"
+    @solr_lib_path = args[:solr_lib_path] || "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
+
     @opts = args
     @simulate = args[:simulate]
     @verify = args[:verify] != nil ? args[:verify] : true
@@ -43,7 +46,6 @@ class SolrIndexManager
     @log.log(msg)
   end
 
-  CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
 
   def replace_with_name(value)
     return value.collect { |item| replace_with_name(item) } if (value.is_a? Array)
@@ -259,7 +261,7 @@ class SolrIndexManager
 
   def merge_index(folders, merge_dest)
     sys_cmd "rm -f solr_merge.out"
-    merge = "java -cp #{SOLR_LIB_PATH}/lucene-core-#{SOLR_VERSION}.jar:#{SOLR_LIB_PATH}/lucene-misc-#{SOLR_VERSION}.jar:#{SOLR_LIB_PATH}/lucene-analyzers-common-#{SOLR_VERSION}.jar org/apache/lucene/misc/IndexMergeTool "
+    merge = "java -cp #{@solr_lib_path}/lucene-core-#{@solr_version}.jar:#{@solr_lib_path}/lucene-misc-#{@solr_version}.jar:#{@solr_lib_path}/lucene-analyzers-common-#{@solr_version}.jar org/apache/lucene/misc/IndexMergeTool "
     make_dir(merge_dest)
     merge << merge_dest + " "
 
