@@ -17,12 +17,21 @@ args =
              '/data/c/solr/#{name}/#{key}',
              '/data/d/solr/#{name}/#{key}',
              '/data/e/solr/#{name}/#{key}',
-            ]
+            ],
+        :solr_version => "3.5.0",
+        :solr_lib_path => "/usr/local/solr/apache-solr-3.5.0/example/webapps/WEB-INF/lib/",
+        :sleep_time => 0.1
     }
-
-
-#require 'yaml'
-#File.open("go.yaml", 'w:UTF-8') { |out| YAML::dump(args, out) }
-
 manager = SolrIndexManager.new(ARGV[0] || args)
-manager.go()
+filename =  "#{manager.index_name}.running"
+
+begin
+  File.new(filename, 'w')
+  puts filename
+  File.open(filename, 'w') { |f| f.write('running') }
+  manager.go()
+  File.delete(filename)
+rescue Exception => ex
+  File.open(filename, 'w+') { |f| f.write(ex.backtrace.to_s + ex.to_s) }
+  raise ex
+end
