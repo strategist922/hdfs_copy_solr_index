@@ -6,7 +6,7 @@ require_relative 'simple_logger'
 class SolrIndexManager
   CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
 
-  attr_reader :opts
+  attr_reader :opts, :index_name
 
   def initialize(args)
     args = YAML::load(File.open(args)) if (args.is_a? String)
@@ -17,7 +17,8 @@ class SolrIndexManager
     @opts = args
     @simulate = args[:simulate]
     @verify = args[:verify] != nil ? args[:verify] : true
-    @name = args[:name]
+    @index_name = args[:name] || get_name_from_path(args[:hadoop_src])
+    @log_file_name = args[:log_file_name] || "#{@index_name}.log"
     @hadoop_src = replace_with_name args[:hadoop_src]
     @local_src = replace_with_name args[:copy_dst]
     @job_id = args[:job_id]
@@ -26,14 +27,18 @@ class SolrIndexManager
     @config_src_folder = args[:config_src_folder]
 
     @wait_for_job = !@job_id.to_s.empty?
-    @log = SimpleLogger.new('log.txt')
+    @log = SimpleLogger.new(@log_file_name)
 
     if @simulate
       require_relative 'cmd_simulate'
       Kernel.path= @hadoop_src
       Kernel.count=20
-      Kernel.sleep_time=2
+      Kernel.sleep_time= @opts[:sleep_time] || 0.2
     end
+  end
+
+  def get_name_from_path(path)
+    path.split('/').last
   end
 
   def puts(msg)
@@ -50,12 +55,14 @@ class SolrIndexManager
   def replace_with_name(value)
     return value.collect { |item| replace_with_name(item) } if (value.is_a? Array)
 
-    name = @name
+    name = @index_name
     key = '#{key}'
     eval('"' + value + '"')
   end
 
   def go
+    puts "#{@index_name} - #{Time.now}"
+
     puts "Wait from job    :#{@job_id}" if @wait_for_job
     puts "Local path       :#{@local_src}"
     puts "Max merge size   :#{@max_merge_size}" if @max_merge_size
