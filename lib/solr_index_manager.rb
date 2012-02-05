@@ -4,17 +4,21 @@ require 'yaml'
 require_relative 'simple_logger'
 
 class SolrIndexManager
-  SOLR_VERSION = "3.3.0"
-  SOLR_LIB_PATH = "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
+  CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
 
-  attr_reader :opts
+  attr_reader :opts, :index_name
 
   def initialize(args)
     args = YAML::load(File.open(args)) if (args.is_a? String)
+
+    @solr_version = args[:solr_version] || "3.3.0"
+    @solr_lib_path = args[:solr_lib_path] || "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
+
     @opts = args
     @simulate = args[:simulate]
     @verify = args[:verify] != nil ? args[:verify] : true
-    @name = args[:name]
+    @index_name = args[:name] || get_name_from_path(args[:hadoop_src])
+    @log_file_name = args[:log_file_name] || "#{@index_name}.log"
     @hadoop_src = replace_with_name args[:hadoop_src]
     @local_src = replace_with_name args[:copy_dst]
     @job_id = args[:job_id]
@@ -23,14 +27,18 @@ class SolrIndexManager
     @config_src_folder = args[:config_src_folder]
 
     @wait_for_job = !@job_id.to_s.empty?
-    @log = SimpleLogger.new('log.txt')
+    @log = SimpleLogger.new(@log_file_name)
 
     if @simulate
       require_relative 'cmd_simulate'
       Kernel.path= @hadoop_src
       Kernel.count=20
-      Kernel.sleep_time=2
+      Kernel.sleep_time= @opts[:sleep_time] || 0.2
     end
+  end
+
+  def get_name_from_path(path)
+    path.split('/').last
   end
 
   def puts(msg)
@@ -38,23 +46,23 @@ class SolrIndexManager
     @log.log(msg + "\n")
   end
 
-  def printf(msg)
-    Kernel::printf msg
+  def print(msg)
+    Kernel::print msg
     @log.log(msg)
   end
 
-  CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
 
   def replace_with_name(value)
     return value.collect { |item| replace_with_name(item) } if (value.is_a? Array)
 
-    name = @name
+    name = @index_name
     key = '#{key}'
     eval('"' + value + '"')
   end
 
-
   def go
+    puts "#{@index_name} - #{Time.now}"
+
     puts "Wait from job    :#{@job_id}" if @wait_for_job
     puts "Local path       :#{@local_src}"
     puts "Max merge size   :#{@max_merge_size}" if @max_merge_size
@@ -186,7 +194,7 @@ class SolrIndexManager
   end
 
   def get_files_with_info_from_hdfs(hadoop_src)
-    printf "finding files and job.info on hdfs:"
+    print "finding files and job.info on hdfs:"
     list_files_cmd = "hadoop fs -du #{hadoop_src} | grep part | gawk '{ if ($1>60)  print $0 }'"
     directory_list = %x[#{list_files_cmd}]
     total_size = 0
@@ -260,7 +268,7 @@ class SolrIndexManager
 
   def merge_index(folders, merge_dest)
     sys_cmd "rm -f solr_merge.out"
-    merge = "java -cp #{SOLR_LIB_PATH}/lucene-core-#{SOLR_VERSION}.jar:#{SOLR_LIB_PATH}/lucene-misc-#{SOLR_VERSION}.jar:#{SOLR_LIB_PATH}/lucene-analyzers-common-#{SOLR_VERSION}.jar org/apache/lucene/misc/IndexMergeTool "
+    merge = "java -cp #{@solr_lib_path}/lucene-core-#{@solr_version}.jar:#{@solr_lib_path}/lucene-misc-#{@solr_version}.jar:#{@solr_lib_path}/lucene-analyzers-common-#{@solr_version}.jar org/apache/lucene/misc/IndexMergeTool "
     make_dir(merge_dest)
     merge << merge_dest + " "
 

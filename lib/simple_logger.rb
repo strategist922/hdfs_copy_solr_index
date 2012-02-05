@@ -4,7 +4,7 @@ class SimpleLogger
   end
 
   def log(msg)
-    @file.write(msg + "\n")
+    @file.write(msg)
     @file.flush()
   end
 end
