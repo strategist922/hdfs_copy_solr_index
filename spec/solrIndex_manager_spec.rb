@@ -34,6 +34,17 @@ describe SolrIndexManager do
     File.delete('test.yaml') if File.exist?'test.yaml'
   end
 
+  it "should get name from path" do
+    args = {
+        hadoop_src: 'solrindex/test',
+        copy_dst: '/copy_to/test',
+        max_merge_size: '100Gb',
+        dst_distribution:
+            ['/data/a/solr/test']
+    }
+    SolrIndexManager.new(args).index_name.should == 'test'
+  end
+
 
   it "should have correct commands when no key" do
     Kernel.stub(:get_key) {|cmd| "key '': 62700332 documents"}
