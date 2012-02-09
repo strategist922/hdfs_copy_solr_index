@@ -24,10 +24,7 @@ args =
     }
 manager = SolrIndexManager.new(ARGV[0] || args)
 filename =  "#{manager.index_name}.running"
-
 begin
-  File.new(filename, 'w')
-  puts filename
   File.open(filename, 'w') { |f| f.write('running') }
   manager.go()
   File.delete(filename)

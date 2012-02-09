@@ -15,7 +15,7 @@ describe SolrIndexManager do
             hadoop_src: 'solrindex/test_20110730',
             copy_dst: '/copy_to/test_20110730',
             max_merge_size: '100Gb',
-            config_src_folder: 'src_conf',
+            config_src_folder: 'solrindex/conf/testSchema.xml',
             core_prefix: 'news_',
             core_admin: 'http://localhost:8983/solr/admin/cores',
             dst_distribution:

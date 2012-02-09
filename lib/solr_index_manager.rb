@@ -82,8 +82,9 @@ class SolrIndexManager
         sys_cmd("hadoop fs -copyToLocal #{hdfs_src} #{dest}", size, status)
       end
 
-      merge_index(copy_info.folders, copy_info.merge_to)
-      sys_cmd("cp -r #{@config_src_folder} #{copy_info.merge_to}/conf") if @config_src_folder
+      merge_index(copy_info.folders, copy_info.merge_to + '/data/index')
+      sys_cmd("hadoop fs -copyToLocal /user/hjellum/solrindex/conf_defaults #{copy_info.merge_to}/conf" )
+      sys_cmd("hadoop fs -copyToLocal #{@config_src_folder} #{copy_info.merge_to}/conf/schema.xml" )
 
       rm_folders(copy_info.folders)
     end
@@ -94,7 +95,6 @@ class SolrIndexManager
     return if @verify == false
     commands.each do |copy_info|
       puts "#{copy_info.info} will merge to:#{copy_info.merge_to}"
-      puts "will copy #{@config_src_folder} to '#{copy_info.merge_to}'" if @config_src_folder
       puts "will create core '#{copy_info.core_name}' with path:'#{copy_info.merge_to}' on '#{@opts[:core_admin]}'"
     end
 
@@ -129,7 +129,7 @@ class SolrIndexManager
 
       key = "#{keys.first}-#{keys.last}"
       eval_data = @dst_distribution[(cnt+=1) % @dst_distribution.size-1]
-      merge_to = eval('"' + eval_data + '"') + '/data/index'
+      merge_to = eval('"' + eval_data + '"')
 
       core_name = @opts[:core_prefix].to_s + key
       commands << CopyInfo.new(info, folders, merge_to, hadoop_commands, key, core_name)
