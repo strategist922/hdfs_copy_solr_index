@@ -31,7 +31,7 @@ describe SolrIndexManager do
   end
 
   after do
-    File.delete('test.yaml') if File.exist?'test.yaml'
+    File.delete('test.yaml') if File.exist? 'test.yaml'
   end
 
   it "should get name from path" do
@@ -47,7 +47,7 @@ describe SolrIndexManager do
 
 
   it "should have correct commands when no key" do
-    Kernel.stub(:get_key) {|cmd| "key '': 62700332 documents"}
+    Kernel.stub(:get_key) { |cmd| "key '': 62700332 documents" }
 
     args = {
         hadoop_src: 'solrindex/test',
@@ -133,4 +133,19 @@ describe SolrIndexManager do
           ].to_s
     end
   end
+
+  it 'should get get_job_status' do
+    args = {
+        hadoop_src: 'solrindex/test_20110730',
+        copy_dst: '/copy_to/test_20110730',
+        max_merge_size: '100Gb',
+        job_id: 'job_201201301118_16571',
+        dst_distribution:
+            ['/data/a/solr/test_20110730/']
+    }
+    @manager = SolrIndexManager.new(args)
+    puts @manager.get_job_status(args[:job_id])
+    puts @manager.wait_for_job
+  end
+
 end

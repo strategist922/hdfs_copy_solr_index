@@ -6,14 +6,13 @@ require_relative 'simple_logger'
 class SolrIndexManager
   CopyInfo = Struct.new(:info, :folders, :merge_to, :hadoop_commands, :result_folder_name, :core_name)
 
-  attr_reader :opts, :index_name
+  attr_reader :opts, :index_name, :log
 
   def initialize(args)
     args = YAML::load(File.open(args)) if (args.is_a? String)
 
     @solr_version = args[:solr_version] || "3.3.0"
     @solr_lib_path = args[:solr_lib_path] || "/usr/lib/solr/apache-solr-3.3.0/example/webapps/WEB-INF/lib/"
-
     @opts = args
     @simulate = args[:simulate]
     @verify = args[:verify] != nil ? args[:verify] : true
@@ -71,7 +70,6 @@ class SolrIndexManager
     continue_or_not
 
     wait_for_job if @wait_for_job
-
     commands = get_commands()
 
     display_job_info(commands)
@@ -83,8 +81,8 @@ class SolrIndexManager
       end
 
       merge_index(copy_info.folders, copy_info.merge_to + '/data/index')
-      sys_cmd("hadoop fs -copyToLocal /user/hjellum/solrindex/conf_defaults #{copy_info.merge_to}/conf" )
-      sys_cmd("hadoop fs -copyToLocal #{@config_src_folder} #{copy_info.merge_to}/conf/schema.xml" )
+      sys_cmd("hadoop fs -copyToLocal /user/hjellum/solrindex/conf_defaults #{copy_info.merge_to}/conf")
+      sys_cmd("hadoop fs -copyToLocal #{@config_src_folder} #{copy_info.merge_to}/conf/schema.xml")
 
       rm_folders(copy_info.folders)
     end
@@ -183,7 +181,7 @@ class SolrIndexManager
       complete = src.scan(/\d+.\d+\d+%/)
       return status, running_for, complete
     rescue Exception => ex
-      return [ex.message]
+      return ex.message, '', ''
     end
   end
 
@@ -243,7 +241,8 @@ class SolrIndexManager
       break if status[0] != 'Running'
       sleep(60)
     end
-    if status[0] != 'Succeeded'
+    if status[0] != 'Succeeded' && status[0] != 'SUCCESS'
+      return if status[0] == nil
       puts "\njob [#{@job_id}] failed! exiting"
       exit
     end
@@ -258,7 +257,7 @@ class SolrIndexManager
       key = part if (!key || key.empty?)
       path = "#{@local_src}/#{key}"
       done_size += size.to_i
-      percentage = (done_size * 100) / total_size
+      percentage = total_size > 0 ? (done_size * 100) / total_size : 0
 
       out = " %02d/%02d-%03d" % [cnt+=1, file_info_list.size, percentage] << "% "
       [file, path, size, key, out]
