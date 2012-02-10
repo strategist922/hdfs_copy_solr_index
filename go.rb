@@ -27,8 +27,10 @@ filename =  "#{manager.index_name}.running"
 begin
   File.open(filename, 'w') { |f| f.write('running') }
   manager.go()
-  File.delete(filename)
 rescue Exception => ex
-  File.open(filename, 'w+') { |f| f.write(ex.backtrace.to_s + ex.to_s) }
+  File.delete(filename)
+  manager.log.log '---- error -----' + "\n"
+  manager.log.log ex.to_s + "\n"
+  manager.log.log ex.backtrace.join("\n")
   raise ex
 end
